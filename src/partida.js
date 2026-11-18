@@ -2,6 +2,8 @@ const tabuleiro = require('./tabuleiro');
 
 const BASE = null;
 const VALOR_SAIDA = 6;
+const SEIS = 6;
+const LIMITE_SEIS_SEGUIDOS = 3;
 
 function validarDado(dado) {
   if (!dado || typeof dado.rolar !== 'function') {
@@ -41,6 +43,7 @@ class Partida {
     this._peoes = montarPeoes(pecas);
     this._jogadorAtual = jogadorInicial;
     this._valorPendente = null;
+    this._seisSeguidos = 0;
   }
 
   get jogadorAtual() {
@@ -77,10 +80,18 @@ class Partida {
       throw new Error('o dado já foi rolado: mova um peão antes de rolar de novo');
     }
     const valor = this._dado.rolar();
-    const movimentos = this._movimentosPara(jogador, valor);
+    this._seisSeguidos = valor === SEIS ? this._seisSeguidos + 1 : 0;
 
-    if (movimentos.length === 0) {
+    if (this._seisSeguidos === LIMITE_SEIS_SEGUIDOS) {
       this._passarVez();
+      return this._resultadoRolagem(valor, 'terceiro-seis', []);
+    }
+
+    const movimentos = this._movimentosPara(jogador, valor);
+    if (movimentos.length === 0) {
+      if (valor !== SEIS) {
+        this._passarVez();
+      }
       return this._resultadoRolagem(valor, 'sem-movimento', movimentos);
     }
     this._valorPendente = valor;
@@ -95,22 +106,27 @@ class Partida {
     if (!Number.isInteger(peao) || peao < 0 || peao >= tabuleiro.PEOES_POR_JOGADOR) {
       throw new Error(`peão inválido: ${peao} (use 0 a 3)`);
     }
-    const destino = this._destino(jogador, peao, this._valorPendente);
+    const valor = this._valorPendente;
+    const destino = this._destino(jogador, peao, valor);
     if (destino === null) {
-      throw new Error(`movimento inválido para o peão ${peao} com o valor ${this._valorPendente}`);
+      throw new Error(`movimento inválido para o peão ${peao} com o valor ${valor}`);
     }
 
     const de = this._peoes[jogador][peao];
     this._peoes[jogador][peao] = destino;
     this._valorPendente = null;
-    this._passarVez();
+    const capturado = this._capturar(jogador, destino);
+    const rolaDeNovo = valor === SEIS || capturado !== null;
+    if (!rolaDeNovo) {
+      this._passarVez();
+    }
 
     return {
       peao,
       de,
       para: destino,
-      capturado: null,
-      rolaDeNovo: false,
+      capturado,
+      rolaDeNovo,
       jogadorAtual: this._jogadorAtual,
     };
   }
@@ -124,6 +140,7 @@ class Partida {
 
   _passarVez() {
     this._jogadorAtual = 1 - this._jogadorAtual;
+    this._seisSeguidos = 0;
   }
 
   _resultadoRolagem(valor, evento, movimentos) {
@@ -140,9 +157,46 @@ class Partida {
   _destino(jogador, peao, valor) {
     const atual = this._peoes[jogador][peao];
     if (atual === BASE) {
-      return valor === VALOR_SAIDA ? 0 : null;
+      return valor === VALOR_SAIDA && !this._temBloqueioAdversario(jogador, 0) ? 0 : null;
     }
-    return atual + valor;
+    const destino = atual + valor;
+    for (let passos = atual + 1; passos <= destino; passos += 1) {
+      if (this._temBloqueioAdversario(jogador, passos)) {
+        return null;
+      }
+    }
+    return destino;
+  }
+
+  // Índices dos peões do adversário que estão na mesma casa do percurso que o passo informado.
+  _adversariosNaCasa(jogador, passos) {
+    const casa = tabuleiro.casaDoPasso(jogador, passos);
+    if (casa === null) {
+      return [];
+    }
+    const adversario = 1 - jogador;
+    return this._peoes[adversario]
+      .map((posicao, peao) => ({ posicao, peao }))
+      .filter(({ posicao }) => posicao !== BASE && tabuleiro.casaDoPasso(adversario, posicao) === casa)
+      .map(({ peao }) => peao);
+  }
+
+  _temBloqueioAdversario(jogador, passos) {
+    return this._adversariosNaCasa(jogador, passos).length >= 2;
+  }
+
+  _capturar(jogador, passos) {
+    const casa = tabuleiro.casaDoPasso(jogador, passos);
+    if (casa === null || tabuleiro.ehCasaSegura(casa)) {
+      return null;
+    }
+    const alvos = this._adversariosNaCasa(jogador, passos);
+    if (alvos.length !== 1) {
+      return null;
+    }
+    const adversario = 1 - jogador;
+    this._peoes[adversario][alvos[0]] = BASE;
+    return { jogador: adversario, peao: alvos[0] };
   }
 }
 
