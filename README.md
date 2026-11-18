@@ -82,7 +82,7 @@ npm run coverage  # roda os testes e gera o relatório de cobertura em coverage/
 - **Cenários montados:** com a opção `pecas` (regra 19), cada teste monta só a situação que precisa, por exemplo um peão no passo 50 ou dois peões adversários formando bloqueio. Os testes são independentes: cada um cria a própria partida.
 - **Partida inteira:** `CT-INTEGRACAO-01` joga uma partida completa só com `rolar` e `mover`, do início à vitória, com um dado de sequência fixa de 96 valores. `CT-INTEGRACAO-03` e `CT-INTEGRACAO-04` jogam partidas completas com dado de semente fixa.
 
-Total: **111 casos de teste**.
+Total: **114 casos de teste**.
 
 ### `tests/rng.test.js` — gerador com semente
 
@@ -157,7 +157,7 @@ Total: **111 casos de teste**.
 | CT-ERRO-08 | Mover sem ter rolado gera erro | Erro "role o dado antes de mover" |
 | CT-ERRO-09 | Rolar fora da vez gera erro | Erro "não é a vez do jogador 1" |
 | CT-ERRO-10 | Mover fora da vez gera erro | Erro "não é a vez do jogador 1" |
-| CT-ERRO-11 | Índice de peão fora de 0 a 3 gera erro | Erro "peão inválido" |
+| CT-ERRO-11 | Índice de peão fora de 0 a 3, não inteiro (1.5) ou texto ("0") | Erro "peão inválido" |
 | CT-ERRO-12 | Jogador inexistente ao rolar ou consultar posições gera erro | Erro "jogador inválido" |
 | CT-ERRO-13 | Uma ação recusada não altera a partida nem consome o dado | Depois dos erros, o jogador 0 rola o 4 esperado e o peão segue no passo 5 |
 | CT-SEIS-01 | Mover com 6 dá direito a rolar de novo | Peão no passo 16, `rolaDeNovo: true`, vez continua do jogador 0 |
@@ -170,6 +170,7 @@ Total: **111 casos de teste**.
 | CT-SEIS-08 | Depois de um 6 sem movimento, um não-6 sem movimento passa a vez | Evento `sem-movimento` e vez do jogador 1 |
 | CT-SEIS-09 | 6 sem movimento conta para os três 6 seguidos | Dois 6 sem movimento mantêm a vez; o terceiro gera `terceiro-seis` e passa a vez |
 | CT-SEIS-10 | Um valor diferente de 6 no meio do turno zera a contagem | A quarta rolagem (6) fica `aguardando-movimento`; peão no passo 25 |
+| CT-SEIS-11 | Depois do terceiro 6 do jogador 0, o jogador 1 tira 6, 6, 6 | A contagem recomeça: o terceiro 6 do jogador 1 também é `terceiro-seis` e a vez volta ao jogador 0 |
 | CT-CAPTURA-01 | Cair na casa de um peão adversário sozinho o manda para a base | Peão no passo 14 e peão do jogador 1 de volta à base |
 | CT-CAPTURA-02 | Quem captura rola de novo, mesmo sem ter tirado 6 | `rolaDeNovo: true` e vez continua do jogador 0 |
 | CT-CAPTURA-03 | O resultado do movimento informa o peão capturado | `capturado: { jogador: 1, peao: 2 }`; posições do jogador 1 `[null, 5, null, null]` |
@@ -178,6 +179,7 @@ Total: **111 casos de teste**.
 | CT-CAPTURA-06 | Cair na casa de um peão próprio não captura nada | `capturado: null`, peões em `[14, 14]` e vez do jogador 1 |
 | CT-CAPTURA-07 | O peão capturado fica na base e só volta com 6 | Jogador 1 rola 5 com evento `sem-movimento` e a vez volta ao jogador 0 |
 | CT-CAPTURA-08 | Capturar com 6 dá direito a só uma rolagem extra | Captura com `rolaDeNovo: true`; após a rolagem extra (2) a vez passa |
+| CT-CAPTURA-09 | Captura logo depois da volta no percurso (casa 51 → casa 1) | `capturado: { jogador: 0, peao: 0 }`, `rolaDeNovo: true`; peão do jogador 0 volta à base |
 | CT-SEGURA-01 | Nas estrelas 8, 21, 34 e 47 os peões convivem sem captura | `capturado: null`, sem rolagem extra e os dois peões na mesma estrela |
 | CT-SEGURA-02 | Nas saídas 13, 26 e 39 os peões convivem sem captura | `capturado: null` e adversário na mesma posição |
 | CT-SEGURA-03 | Na saída 0 o jogador 1 não captura o peão do jogador 0 | `capturado: null`; jogador 0 continua no passo 0 |
@@ -193,6 +195,7 @@ Total: **111 casos de teste**.
 | CT-BLOQUEIO-08 | Três peões na mesma casa também formam bloqueio | Movimentos `[1]` |
 | CT-BLOQUEIO-09 | Quando um peão sai do bloqueio, o que fica pode ser capturado | O jogador 0 captura o peão 1 do jogador 1 |
 | CT-BLOQUEIO-10 | Bloqueio não é capturado e, sem outro movimento, a vez passa | Evento `sem-movimento`, vez do jogador 1, bloqueio intacto |
+| CT-BLOQUEIO-11 | Bloqueio na casa 0 com o adversário vindo da casa 50 | Evento `sem-movimento`; o peão do jogador 1 fica no passo 24 |
 | CT-RETA-01 | Do último passo do percurso (50) o peão entra na reta final com 1 | Peão no passo 51, que não tem casa no percurso |
 | CT-RETA-02 | O peão anda dentro da reta final | `de: 51`, `para: 54`, `chegou: false` |
 | CT-RETA-03 | Chega com o valor exato (52 + 4 = 56) | `para: 56`, `chegou: true` |

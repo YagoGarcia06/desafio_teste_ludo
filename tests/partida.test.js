@@ -213,6 +213,8 @@ describe('Erros de uso', () => {
     partida.rolar(0);
     expect(() => partida.mover(0, 4)).toThrow(/peão inválido/);
     expect(() => partida.mover(0, -1)).toThrow(/peão inválido/);
+    expect(() => partida.mover(0, 1.5)).toThrow(/peão inválido/);
+    expect(() => partida.mover(0, '0')).toThrow(/peão inválido/);
   });
 
   test('CT-ERRO-12: jogador inexistente ao rolar ou consultar posições gera erro', () => {
@@ -332,6 +334,21 @@ describe('Regras do 6', () => {
     expect(resultado.evento).toBe('aguardando-movimento');
     expect(partida.posicoes(0)[0]).toBe(25);
   });
+
+  test('CT-SEIS-11: a contagem de 6 zera quando a vez passa pelo terceiro 6', () => {
+    const partida = novaPartida([6, 6, 6, 6, 6, 6], { pecas: [[10, B, B, B], [10, B, B, B]] });
+    partida.rolar(0);
+    partida.mover(0, 0);
+    partida.rolar(0);
+    partida.mover(0, 0);
+    expect(partida.rolar(0).evento).toBe('terceiro-seis');
+    expect(partida.rolar(1).evento).toBe('aguardando-movimento');
+    partida.mover(1, 0);
+    expect(partida.rolar(1).evento).toBe('aguardando-movimento');
+    partida.mover(1, 0);
+    expect(partida.rolar(1).evento).toBe('terceiro-seis');
+    expect(partida.jogadorAtual).toBe(0);
+  });
 });
 
 describe('Captura', () => {
@@ -407,6 +424,14 @@ describe('Captura', () => {
     partida.mover(0, 0);
     expect(partida.posicoes(0)[0]).toBe(16);
     expect(partida.jogadorAtual).toBe(1);
+  });
+
+  test('CT-CAPTURA-09: captura logo depois da volta no percurso (casa 51 para a casa 1)', () => {
+    // jogador 1 no passo 24 (casa 50) tira 3 e para no passo 27 (casa 1)
+    const partida = novaPartida([3], { pecas: [[1, B, B, B], [24, B, B, B]], jogadorInicial: 1 });
+    partida.rolar(1);
+    expect(partida.mover(1, 0)).toMatchObject({ para: 27, capturado: { jogador: 0, peao: 0 }, rolaDeNovo: true });
+    expect(partida.posicoes(0)).toEqual([B, B, B, B]);
   });
 });
 
@@ -535,6 +560,13 @@ describe('Bloqueio', () => {
     expect(resultado.evento).toBe('sem-movimento');
     expect(partida.jogadorAtual).toBe(1);
     expect(partida.posicoes(1)).toEqual([40, 40, B, B]);
+  });
+
+  test('CT-BLOQUEIO-11: bloqueio na casa 0 barra o adversário que vem da casa 50', () => {
+    const partida = novaPartida([3], { pecas: [[0, 0, B, B], [24, B, B, B]], jogadorInicial: 1 });
+    const resultado = partida.rolar(1);
+    expect(resultado).toEqual({ valor: 3, evento: 'sem-movimento', movimentos: [], jogadorAtual: 0 });
+    expect(partida.posicoes(1)).toEqual([24, B, B, B]);
   });
 });
 
