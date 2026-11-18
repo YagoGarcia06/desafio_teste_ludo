@@ -44,6 +44,7 @@ class Partida {
     this._jogadorAtual = jogadorInicial;
     this._valorPendente = null;
     this._seisSeguidos = 0;
+    this._vencedor = this._calcularVencedor();
   }
 
   get jogadorAtual() {
@@ -55,7 +56,7 @@ class Partida {
   }
 
   get vencedor() {
-    return null;
+    return this._vencedor;
   }
 
   get terminou() {
@@ -116,8 +117,10 @@ class Partida {
     this._peoes[jogador][peao] = destino;
     this._valorPendente = null;
     const capturado = this._capturar(jogador, destino);
-    const rolaDeNovo = valor === SEIS || capturado !== null;
-    if (!rolaDeNovo) {
+    const chegou = destino === tabuleiro.PASSO_CHEGADA;
+    this._vencedor = this._calcularVencedor();
+    const rolaDeNovo = !this.terminou && (valor === SEIS || capturado !== null || chegou);
+    if (!rolaDeNovo && !this.terminou) {
       this._passarVez();
     }
 
@@ -126,12 +129,17 @@ class Partida {
       de,
       para: destino,
       capturado,
+      chegou,
       rolaDeNovo,
+      vencedor: this._vencedor,
       jogadorAtual: this._jogadorAtual,
     };
   }
 
   _validarVez(jogador) {
+    if (this.terminou) {
+      throw new Error(`a partida terminou: o jogador ${this._vencedor} venceu`);
+    }
     tabuleiro.validarJogador(jogador);
     if (jogador !== this._jogadorAtual) {
       throw new Error(`não é a vez do jogador ${jogador}`);
@@ -141,6 +149,11 @@ class Partida {
   _passarVez() {
     this._jogadorAtual = 1 - this._jogadorAtual;
     this._seisSeguidos = 0;
+  }
+
+  _calcularVencedor() {
+    const indice = this._peoes.findIndex((lista) => lista.every((passos) => passos === tabuleiro.PASSO_CHEGADA));
+    return indice === -1 ? null : indice;
   }
 
   _resultadoRolagem(valor, evento, movimentos) {
@@ -160,6 +173,9 @@ class Partida {
       return valor === VALOR_SAIDA && !this._temBloqueioAdversario(jogador, 0) ? 0 : null;
     }
     const destino = atual + valor;
+    if (destino > tabuleiro.PASSO_CHEGADA) {
+      return null;
+    }
     for (let passos = atual + 1; passos <= destino; passos += 1) {
       if (this._temBloqueioAdversario(jogador, passos)) {
         return null;
