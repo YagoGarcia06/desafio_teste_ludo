@@ -2,6 +2,7 @@ const tabuleiro = require('./tabuleiro');
 
 const BASE = null;
 const VALOR_SAIDA = 6;
+const PASSO_SAIDA = 0;
 const SEIS = 6;
 const LIMITE_SEIS_SEGUIDOS = 3;
 
@@ -9,6 +10,10 @@ function validarDado(dado) {
   if (!dado || typeof dado.rolar !== 'function') {
     throw new Error('dado inválido: informe um objeto com a função rolar()');
   }
+}
+
+function adversarioDe(jogador) {
+  return 1 - jogador;
 }
 
 function peoesNaBase() {
@@ -147,7 +152,7 @@ class Partida {
   }
 
   _passarVez() {
-    this._jogadorAtual = 1 - this._jogadorAtual;
+    this._jogadorAtual = adversarioDe(this._jogadorAtual);
     this._seisSeguidos = 0;
   }
 
@@ -170,7 +175,10 @@ class Partida {
   _destino(jogador, peao, valor) {
     const atual = this._peoes[jogador][peao];
     if (atual === BASE) {
-      return valor === VALOR_SAIDA && !this._temBloqueioAdversario(jogador, 0) ? 0 : null;
+      if (valor !== VALOR_SAIDA) {
+        return null;
+      }
+      return this._temBloqueioAdversario(jogador, PASSO_SAIDA) ? null : PASSO_SAIDA;
     }
     const destino = atual + valor;
     if (destino > tabuleiro.PASSO_CHEGADA) {
@@ -190,7 +198,7 @@ class Partida {
     if (casa === null) {
       return [];
     }
-    const adversario = 1 - jogador;
+    const adversario = adversarioDe(jogador);
     return this._peoes[adversario]
       .map((posicao, peao) => ({ posicao, peao }))
       .filter(({ posicao }) => posicao !== BASE && tabuleiro.casaDoPasso(adversario, posicao) === casa)
@@ -210,7 +218,7 @@ class Partida {
     if (alvos.length !== 1) {
       return null;
     }
-    const adversario = 1 - jogador;
+    const adversario = adversarioDe(jogador);
     this._peoes[adversario][alvos[0]] = BASE;
     return { jogador: adversario, peao: alvos[0] };
   }
