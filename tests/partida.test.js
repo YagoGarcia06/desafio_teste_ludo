@@ -1,5 +1,6 @@
 const { Partida, BASE } = require('../src/partida');
-const { criarDadoSequencia } = require('../src/dado');
+const { criarDadoSequencia, criarDadoAleatorio } = require('../src/dado');
+const { criarRng } = require('../src/rng');
 const { casaDoPasso } = require('../src/tabuleiro');
 
 const B = BASE;
@@ -534,5 +535,229 @@ describe('Bloqueio', () => {
     expect(resultado.evento).toBe('sem-movimento');
     expect(partida.jogadorAtual).toBe(1);
     expect(partida.posicoes(1)).toEqual([40, 40, B, B]);
+  });
+});
+
+describe('Reta final e chegada', () => {
+  test('CT-RETA-01: do último passo do percurso (50) o peão entra na reta final com 1', () => {
+    const partida = novaPartida([1], { pecas: [[50, B, B, B], [B, B, B, B]] });
+    partida.rolar(0);
+    partida.mover(0, 0);
+    expect(partida.posicoes(0)[0]).toBe(51);
+    expect(casaDoPasso(0, 51)).toBeNull();
+  });
+
+  test('CT-RETA-02: o peão anda dentro da reta final', () => {
+    const partida = novaPartida([3], { pecas: [[51, B, B, B], [B, B, B, B]] });
+    partida.rolar(0);
+    const resultado = partida.mover(0, 0);
+    expect(resultado).toMatchObject({ de: 51, para: 54, chegou: false });
+  });
+
+  test('CT-RETA-03: chega com o valor exato (52 + 4 = 56)', () => {
+    const partida = novaPartida([4], { pecas: [[52, B, B, B], [B, B, B, B]] });
+    partida.rolar(0);
+    const resultado = partida.mover(0, 0);
+    expect(resultado).toMatchObject({ para: 56, chegou: true });
+    expect(partida.posicoes(0)[0]).toBe(56);
+  });
+
+  test('CT-RETA-04: passar da chegada é movimento inválido', () => {
+    const partida = novaPartida([4], { pecas: [[53, 10, B, B], [B, B, B, B]] });
+    expect(partida.rolar(0).movimentos).toEqual([1]);
+    expect(() => partida.mover(0, 0)).toThrow(/movimento inválido/);
+  });
+
+  test('CT-RETA-05: no passo 55 só o 1 serve; o 2 já passa da chegada (limite)', () => {
+    const comUm = novaPartida([1], { pecas: [[55, 10, B, B], [B, B, B, B]] });
+    expect(comUm.rolar(0).movimentos).toEqual([0, 1]);
+    const comDois = novaPartida([2], { pecas: [[55, 10, B, B], [B, B, B, B]] });
+    expect(comDois.rolar(0).movimentos).toEqual([1]);
+  });
+
+  test('CT-RETA-06: chegar com um peão dá direito a rolar de novo', () => {
+    const partida = novaPartida([2], { pecas: [[54, B, B, B], [B, B, B, B]] });
+    partida.rolar(0);
+    const resultado = partida.mover(0, 0);
+    expect(resultado.rolaDeNovo).toBe(true);
+    expect(partida.jogadorAtual).toBe(0);
+  });
+
+  test('CT-RETA-07: peão na reta final não é capturado', () => {
+    // passo 51 do jogador 0 fica depois da casa 50; o jogador 1 para na casa 51 (passo 25)
+    const partida = novaPartida([5], { pecas: [[51, B, B, B], [20, B, B, B]], jogadorInicial: 1 });
+    partida.rolar(1);
+    const resultado = partida.mover(1, 0);
+    expect(casaDoPasso(1, resultado.para)).toBe(51);
+    expect(resultado.capturado).toBeNull();
+    expect(partida.posicoes(0)).toEqual([51, B, B, B]);
+  });
+
+  test('CT-RETA-08: peão que já chegou não se move mais', () => {
+    const partida = novaPartida([3], { pecas: [[56, B, B, B], [B, B, B, B]] });
+    const resultado = partida.rolar(0);
+    expect(resultado.evento).toBe('sem-movimento');
+    expect(partida.jogadorAtual).toBe(1);
+  });
+
+  test('CT-RETA-09: valor alto demais para a reta: passa a vez, mas no 6 rola de novo', () => {
+    const comCinco = novaPartida([5], { pecas: [[54, 56, B, B], [B, B, B, B]] });
+    expect(comCinco.rolar(0).evento).toBe('sem-movimento');
+    expect(comCinco.jogadorAtual).toBe(1);
+
+    const comSeis = novaPartida([6], { pecas: [[54, 56, 56, 56], [B, B, B, B]] });
+    expect(comSeis.rolar(0).evento).toBe('sem-movimento');
+    expect(comSeis.jogadorAtual).toBe(0);
+  });
+
+  test('CT-RETA-10: bloqueio no fim do percurso impede a entrada na reta final', () => {
+    // dois peões do jogador 1 no passo 24 = casa 50
+    const partida = novaPartida([4], { pecas: [[48, 10, B, B], [24, 24, B, B]] });
+    expect(partida.rolar(0).movimentos).toEqual([1]);
+  });
+});
+
+describe('Vitória', () => {
+  test('CT-VITORIA-01: levar o 4º peão à chegada dá a vitória ao jogador 0', () => {
+    const partida = novaPartida([1], { pecas: [[56, 56, 56, 55], [B, B, B, B]] });
+    partida.rolar(0);
+    const resultado = partida.mover(0, 3);
+    expect(resultado.vencedor).toBe(0);
+    expect(partida.vencedor).toBe(0);
+    expect(partida.terminou).toBe(true);
+  });
+
+  test('CT-VITORIA-02: o jogador 1 também pode vencer', () => {
+    const partida = novaPartida([6], { pecas: [[10, B, B, B], [50, 56, 56, 56]], jogadorInicial: 1 });
+    partida.rolar(1);
+    partida.mover(1, 0);
+    expect(partida.vencedor).toBe(1);
+  });
+
+  test('CT-VITORIA-03: com 3 peões na chegada ainda não há vencedor (limite)', () => {
+    const partida = novaPartida([1], { pecas: [[56, 56, 55, B], [B, B, B, B]] });
+    partida.rolar(0);
+    const resultado = partida.mover(0, 2);
+    expect(resultado.vencedor).toBeNull();
+    expect(partida.terminou).toBe(false);
+    expect(partida.jogadorAtual).toBe(0);
+  });
+
+  test('CT-VITORIA-04: rolar depois da vitória gera erro', () => {
+    const partida = novaPartida([1, 3], { pecas: [[56, 56, 56, 55], [B, B, B, B]] });
+    partida.rolar(0);
+    partida.mover(0, 3);
+    expect(() => partida.rolar(0)).toThrow(/partida terminou/);
+    expect(() => partida.rolar(1)).toThrow(/partida terminou/);
+  });
+
+  test('CT-VITORIA-05: mover depois da vitória gera erro', () => {
+    const partida = novaPartida([1], { pecas: [[56, 56, 56, 55], [B, B, B, B]] });
+    partida.rolar(0);
+    partida.mover(0, 3);
+    expect(() => partida.mover(0, 0)).toThrow(/partida terminou/);
+  });
+
+  test('CT-VITORIA-06: a jogada da vitória não dá nova rolagem e mantém o vencedor como jogador atual', () => {
+    const partida = novaPartida([1], { pecas: [[56, 56, 56, 55], [B, B, B, B]] });
+    partida.rolar(0);
+    const resultado = partida.mover(0, 3);
+    expect(resultado).toMatchObject({ chegou: true, rolaDeNovo: false, jogadorAtual: 0 });
+  });
+
+  test('CT-VITORIA-07: estado inicial com os 4 peões na chegada começa terminado', () => {
+    const partida = novaPartida([1], { pecas: [[B, B, B, B], [56, 56, 56, 56]] });
+    expect(partida.vencedor).toBe(1);
+    expect(() => partida.rolar(0)).toThrow(/partida terminou/);
+  });
+});
+
+describe('Partidas integradas (só rolar e mover)', () => {
+  // Joga sempre o primeiro peão com movimento válido até a partida terminar.
+  function jogarAteOFim(partida, limiteRolagens = 10000) {
+    const registro = { rolagens: 0, movimentos: 0, capturas: 0, terceiroSeis: 0 };
+    while (!partida.terminou) {
+      if (registro.rolagens >= limiteRolagens) {
+        throw new Error('partida não terminou dentro do limite');
+      }
+      const jogador = partida.jogadorAtual;
+      const rolagem = partida.rolar(jogador);
+      registro.rolagens += 1;
+      if (rolagem.evento === 'terceiro-seis') {
+        registro.terceiroSeis += 1;
+      }
+      if (rolagem.movimentos.length > 0) {
+        const resultado = partida.mover(jogador, rolagem.movimentos[0]);
+        registro.movimentos += 1;
+        if (resultado.capturado) {
+          registro.capturas += 1;
+        }
+      }
+    }
+    return registro;
+  }
+
+  test('CT-INTEGRACAO-01: partida completa com dado de sequência fixa termina com vitória do jogador 0', () => {
+    // Para cada peão do jogador 0: 6 para sair, onze 5 (cada um seguido do 1 do
+    // jogador 1, que não sai da base) e um 1 para chegar exatamente no passo 56.
+    const sequencia = [];
+    for (let peao = 0; peao < 4; peao += 1) {
+      sequencia.push(6);
+      for (let i = 0; i < 11; i += 1) {
+        sequencia.push(5, 1);
+      }
+      sequencia.push(1);
+    }
+    const dado = criarDadoSequencia(sequencia);
+    const partida = new Partida({ dado });
+
+    const registro = jogarAteOFim(partida);
+
+    expect(partida.vencedor).toBe(0);
+    expect(partida.posicoes(0)).toEqual([56, 56, 56, 56]);
+    expect(partida.posicoes(1)).toEqual([B, B, B, B]);
+    expect(registro).toEqual({ rolagens: 96, movimentos: 52, capturas: 0, terceiroSeis: 0 });
+    expect(() => dado.rolar()).toThrow(/esgotada/);
+  });
+
+  test('CT-INTEGRACAO-02: turno curto com saída, captura e rolagem extra encadeadas', () => {
+    // jogador 1 sai (6) e anda 1 até a casa 27; jogador 0 (passo 22) tira 5 e captura,
+    // rola de novo e anda 2; jogador 1 tira 4 sem peão em jogo e passa a vez.
+    const partida = novaPartida([6, 1, 5, 2, 4], { pecas: [[22, B, B, B], [B, B, B, B]], jogadorInicial: 1 });
+
+    partida.rolar(1);
+    expect(partida.mover(1, 0)).toMatchObject({ para: 0, rolaDeNovo: true });
+    partida.rolar(1);
+    expect(partida.mover(1, 0)).toMatchObject({ para: 1, rolaDeNovo: false, jogadorAtual: 0 });
+
+    partida.rolar(0);
+    expect(partida.mover(0, 0)).toMatchObject({ para: 27, capturado: { jogador: 1, peao: 0 }, rolaDeNovo: true });
+    partida.rolar(0);
+    expect(partida.mover(0, 0)).toMatchObject({ para: 29, jogadorAtual: 1 });
+
+    expect(partida.rolar(1)).toMatchObject({ evento: 'sem-movimento', jogadorAtual: 0 });
+    expect(partida.posicoes(0)).toEqual([29, B, B, B]);
+    expect(partida.posicoes(1)).toEqual([B, B, B, B]);
+  });
+
+  test('CT-INTEGRACAO-03: partidas inteiras com dado de rng e semente fixa sempre terminam com um vencedor', () => {
+    [1, 2, 3, 2026].forEach((semente) => {
+      const partida = new Partida({ dado: criarDadoAleatorio(criarRng(semente)) });
+      const registro = jogarAteOFim(partida);
+      const vencedor = partida.vencedor;
+      expect([0, 1]).toContain(vencedor);
+      expect(partida.posicoes(vencedor)).toEqual([56, 56, 56, 56]);
+      expect(partida.posicoes(1 - vencedor)).not.toEqual([56, 56, 56, 56]);
+      expect(registro.movimentos).toBeGreaterThan(0);
+    });
+  });
+
+  test('CT-INTEGRACAO-04: a mesma semente reproduz exatamente a mesma partida', () => {
+    const jogar = () => {
+      const partida = new Partida({ dado: criarDadoAleatorio(criarRng(77)) });
+      const registro = jogarAteOFim(partida);
+      return { registro, vencedor: partida.vencedor, perdedor: partida.posicoes(1 - partida.vencedor) };
+    };
+    expect(jogar()).toEqual(jogar());
   });
 });
